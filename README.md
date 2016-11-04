@@ -50,11 +50,11 @@ function及各自实现的功能
 	invoke 调用合约内部的函数
 	query 查询相关的信息
 
-	create
-	close
-	open
+	createLottery
+	closeLottery
+	createPlayer
 
-	buy
+	buyTicket
 	check
 	
 
