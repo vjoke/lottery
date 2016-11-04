@@ -54,6 +54,7 @@ function及各自实现的功能
 
 	createAuthority 创建彩票发行方
 	createPlayer 创建玩家
+	
 	createLottery
 	drawLottery
 	closeLottery
