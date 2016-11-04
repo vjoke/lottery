@@ -22,10 +22,14 @@
 
  // global vars
  var baseMoney = 5000000
+ var pulishmentMoney = 100000
  var targetBlock = 20000
  var ticketNo = 0
  var ticketPrice = 2
  var prizeUnit = 1000
+ var minCount = 1
+ var maxCount = 10
+ var dayToClose = 15
 
  type Lottery struct {
  	Name string
@@ -33,15 +37,16 @@
  	Type int
  	InitBalance int 	
  	EndTime int64
- 	// ...
+ 	CloseTime int64
+ 	// TODO
  	PrivateKey string
  	PublicKey string
  	TicketAddress []string
- 	// 
+ 	// 1:ACTIVE 2:DRAW 3:CLOSED
  	State int
  	TotalMoney int
- 	InitiatorAddress string
- 	TargetNumber string
+ 	AuthorityAddress string
+ 	LuckyNumber string
  }
 
  type Authority struct {
@@ -60,7 +65,6 @@
  	Money int
  }
 
-
  type Ticket struct {
  	Id int
  	Address string
@@ -70,7 +74,7 @@
  	BuyTime int64
  	Count int
  	BuyNumber string
- 	// 0: INVALID, 1:VALID, 2:MISSED, 3:USED
+ 	// 0: INVALID, 1:VALID, 2:MISSED, 3:WON
  	State int
  } 
 
@@ -111,7 +115,7 @@
 		return nil, errors.New("Error get data")
 	}
 
-	money, err = strconv.Atoi(args[3])
+	money, err := strconv.Atoi(args[3])
 	if err != nil {
 		return nil, errors.New("Error parameter")
 	}
@@ -120,17 +124,24 @@
 		return nil, erros.New("Not enough money")
 	}
 
+	endTime, err := strconv.Atoi(args[4])
+	if err != nil {
+		return nil, errors.New("Error parameter")
+	}
+
+	var closeTime int64
  	var lottery Lottery
  	var lotteryBytes []byte
  	var ticketAddress []string
  	var address, privateKey, publicKey string
 
  	address, privateKey, publicKey = GetAddress()
+ 	closeTime = endTime + dayToClose * 86400
 
- 	lottery = Lottery {Name:args[1], Type:args[2], InitBalance:money, EndTime:args[4],
+ 	lottery = Lottery { Name:args[1], Type:args[2], InitBalance:money, EndTime:endTime, CloseTime:closeTime
  						Address:address, PrivateKey:privateKey, PublicKey:publicKey, 
  						TicketAddress:ticketAddress, State:1, TotalMoney:money,
- 						InitiatorAddress:authority.Address, TargetNumber:""}
+ 						AuthorityAddress:authority.Address, LuckyNumber:"" }
 
  	// FIXME: update money
  	authority.Money = authority.Money - baseMoney
@@ -165,7 +176,7 @@
 
 	authority = Authority { Name:args[0], Money:args[1], Address:address, PrivateKey:privateKey, PublicKey:publicKey }
 	err := writeAuthority(stub, authority)
-	if err != nil{
+	if err != nil {
 		return nil, errors.New("Write error" + err.Error())
 	}
 
@@ -203,10 +214,14 @@
 }
 
 func (t *SimpleChaincode) buyTicket(stub *shim.ChaincodeStub, args []string) ([]byte, error) {
-
+	// check if lottery is valid
 	lottery, lotteryBytes, error := getLotteryByAddress(stub, args[0])
 	if error != nil {
 		return nil, errors.New("Error get data")
+	}
+
+	if lottery.EndTime > time.Now().Unix() {
+		return nil, errors.New("Lottery is closed")
 	}
 
 	if lottery.State != 1 {
@@ -224,18 +239,18 @@ func (t *SimpleChaincode) buyTicket(stub *shim.ChaincodeStub, args []string) ([]
 		return nil, errors.New("Expecting integer value for count")
 	}
 
-	// update money
 	var total int
 	total = count * ticketPrice
 	if player.Money < total {
 		return nil, errors.New("Not enough money")
-	}	
+	}
 
+	// TODO: check range
 	var ticket Ticket
 	var address string
 	// FIXME
 	address, _, _ = GetAddress()
-	ticket = Ticket{Id:ticketNo, Address:address, 
+	ticket = Ticket { Id:ticketNo, Address:address, 
 		LotteryAddress:args[0], PlayerAddress:args[2], Count:count, BuyNumber:args[4],
 		PlayerSign:playerSign, BuyTime:time.Now().Unix(), State:1}
 
@@ -268,7 +283,56 @@ func (t *SimpleChaincode) buyTicket(stub *shim.ChaincodeStub, args []string) ([]
 	return ticketBytes, nil
 }
 
+func (t *SimpleChaincode) drawLottery(stub *shim.ChaincodeStub, args []string) ([]byte, error) {
+
+	var timeNow int64
+	timeNow = time.Now().Unix()
+
+	lottery, lotteryBytes, error := getLotteryByAddress(stub, args[0])
+	if error != nil {
+		return nil, errors.New("Error get data")
+	}
+
+	if lottery.State != 1 {
+		return nil, errors.New("Lottery is not active!")
+	}
+	// FIXME: time is not a good idea, use block height to trigger?
+	if lottery.EndTime < timeNow {
+		return nil, errors.New("Lottery is still active")
+	}
+	
+	// FIXME TODO: determine the lucky number
+	rand.Seed(stub.GetTxID())
+	var number string
+	number = rand.Rand()
+
+	lottery.LuckyNumber = number
+	lottery.State = 2
+	// FIXME: to avoid cheat
+	if lottery.EndTime < (timeNow - 86400) {
+		lottery.TotalMoney = lottery.TotalMoney - pulishmentMoney
+	}
+
+	lottery.CloseTime = timeNow + dayToClose*86400
+
+	err = writeLottery(stub, lottery)
+	if err != nil {
+		return nil, errors.New("Error write data")
+	}
+
+	lotteryBytes, err = json.Marshal(&lottery)
+ 	if err != nil {
+ 		return nil, errors.New("Error retrieving lotteryBytes")
+ 	}
+
+ 	return lotteryBytes, nil
+}
+
 func (t *SimpleChaincode) takePrize(stub *shim.ChaincodeStub, args []string) ([]byte, error) {
+
+	var totalPrize int
+	var timeNow int64
+	timeNow = time.Now().Unix()
 
 	ticket, ticketBytes, error := getTicketByAddress(stub, args[0])
 	if error != nil {
@@ -280,15 +344,19 @@ func (t *SimpleChaincode) takePrize(stub *shim.ChaincodeStub, args []string) ([]
 		return nil, errors.New("Error get data")
 	}
 
-	if lottery.State != 2 {
+	if lottery.State == 1 {
 		return nil, errors.New("Lottery is active!")
+	}
+
+	if lottery.State == 3 {
+		return nil, errors.New("Lottery is closed, too late!")
 	}
 
 	player, playerBytes, err := getPlayerByAddress(stub, ticket.PlayerAddress)
 	if err != nil {
 		return nil, errors.New("Error get data")
 	}
-	// check signature
+	// FIXME: check signature
 	playerSign := args[1]
 	if playerSign != player.PlayerSign {
 		return nil, errors.New("Not allowed")
@@ -298,21 +366,20 @@ func (t *SimpleChaincode) takePrize(stub *shim.ChaincodeStub, args []string) ([]
 		return nil, errors.New("Already taken the prize")
 	}
 
-	if ticket.BuyNumber != lottery.TargetNumber {
+	if ticket.BuyNumber != lottery.LuckyNumber {
 		return nil, errors.New("Missed")
 	}
 
-	// lucky man
-
+	// TODO
 	ticket.State = 3
+	totalPrize = lottery.count * prizeUnit
+	// TODO: avoid underrun
+	lottery.TotalMoney -= totalPrize
+
 	err = writeTicket(stub, ticket)
 	if err != nil {
 		return nil, errors.New("Error write data")
 	}
-	var totalPrize int
-	totalPrize = lottery.count * prizeUnit
-	// TODO: avoid underrun
-	lottery.TotalMoney -= totalPrize
 
 	err = writeLottery(stub, lottery)
 	if err != nil {
@@ -333,6 +400,55 @@ func (t *SimpleChaincode) takePrize(stub *shim.ChaincodeStub, args []string) ([]
 	}
 
 	return ticketBytes, nil
+}
+
+func (t *SimpleChaincode) closeLottery(stub *shim.ChaincodeStub, args []string) ([]byte, error) {
+
+	lottery, lotteryBytes, error := getLotteryByAddress(stub, args[0])
+	if error != nil {
+		return nil, errors.New("Error get data")
+	}
+
+	if lottery.State != 2 {
+		return nil, errors.New("Lottery is active!")
+	}
+
+	authority, authorityBytes, err := getAuthorityByAddress(stub, lottery.AuthorityAddress)
+	if err != nil {
+		return nil, errors.New("Error get data")
+	}
+
+	// FIXME: check signature
+	authoritySign := args[1]
+	if authoritySign != authority.PrivateKey {
+		return nil, errors.New("Not allowed")
+	}
+
+	if lottery.CloseTime < time.Now().Unix() {
+		return nil, errors.New("Not expired")
+	}
+	// close the lottery
+	lottery.State = 3
+	authority.Money = authority.Money + lottery.TotalMoney
+	// FIXME
+	// lottery.TotalMoney = 0
+	err = writeAuthority(stub, authority)
+	if err != nil {
+		return nil, errors.New("Error write data")
+	}
+
+	err = writeLottery(stub, lottery)
+	if err != nil {
+		return nil, errors.New("Error write data")
+	}
+
+	authorityBytes, err = json.Marshal(&authority)
+	
+	if err!= nil {
+		return nil,errors.New("Error retrieving authorityBytes")
+	}
+
+	return authorityBytes, nil
 }
 
 func getLotteryByAddress(stub *shim.ChaincodeStub, address string) (Lottery, []byte, error) {
