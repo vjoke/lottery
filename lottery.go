@@ -26,10 +26,10 @@
  	BASE_MONEY = 5000000
 	PULISHMENT_MONEY = 100000
 	TICKET_PRICE = 2
-	PRIZE_UNIT = 1000
 	MIN_COUNT = 1
 	MAX_COUNT = 10
 	DAYS_TO_CLOSE = 15
+	FEE_PERCENT = 0.0000001
  )
 
 // lottery state
@@ -61,11 +61,21 @@
  	
  	State int
  	TotalMoney int
- 	AuthorityAddress string
+ 	IssuerAddress string
  	LuckyNumber string
+ 	PrizeUnit int
+ 	CompanyAddress string
  }
 
- type Authority struct {
+ type Company struct {
+ 	Name string
+ 	Addrres string
+ 	PrivateKey string
+ 	PublicKey string
+ 	Money int
+ }
+
+ type Issuer struct {
  	Name string
  	Address string
  	PrivateKey string
@@ -91,7 +101,90 @@
  	BuyNumber string
  	
  	State int
- } 
+ }
+
+ // interface functions
+ func (t *SimpleChaincode) Init(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error) {
+	if function == "createCompany"{
+		return t.createCompany(stub,args)
+	} else if function == "createIssuer"{
+		return t.createIssuer(stub,args)
+	} else if function == "createPlayer"{
+		return t.createPlayer(stub,args)
+	}
+}
+
+func (t *SimpleChaincode) Invoke(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error) {
+	if function == "createLottery"{
+		return t.createLottery(stub,args)
+	} else if function == "drawLottery"{
+		return t.drawLottery(stub,args)
+	} else if function == "closeLottery"{
+		return t.closeLottery(stub,args)
+	} else if function == "buyTicket"{
+		return t.buyTicket(stub,args)
+	} else if function == "takePrize"{
+		return t.takePrize(stub,args)
+	} 
+
+	return nil,nil
+}
+
+func (t *SimpleChaincode) Query(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error) {
+	if function == "getCompanyByAddress"{
+		if len(args) != 1 {
+			return nil, errors.New("Incorrect number of arguments. Expecting 1")
+		}
+		_, companyBytes, err := getComanyByAddress(stub,args[0])
+		if err != nil {
+			fmt.Println("Error get company")
+			return nil, err
+		}
+		return companyBytes, nil
+	} else if function == "getIssuerByAddress"{
+		if len(args) != 1 {
+			return nil, errors.New("Incorrect number of arguments. Expecting 1")
+		}
+		_, issuerBytes, err := getIssuerByAddress(stub,args[0])
+		if err != nil {
+			fmt.Println("Error get issuer")
+			return nil, err
+		}
+		return issuerBytes, nil
+	} else if function == "getPlayerByAddress"{
+		if len(args) != 1 {
+			return nil, errors.New("Incorrect number of arguments. Expecting 1")
+		}
+		_, playerBytes, err := getPlayerByAddress(stub,args[0])
+		if err != nil {
+			fmt.Println("Error get player")
+			return nil, err
+		}
+		return playerBytes, nil
+	} else if function == "getLotteryByAddress"{
+		if len(args) != 1 {
+			return nil, errors.New("Incorrect number of arguments. Expecting 1")
+		}
+		_, lotteryBytes, err := getLotteryByAddress(stub,args[0])
+		if err != nil {
+			fmt.Println("Error get lottery")
+			return nil, err
+		}
+		return lotteryBytes, nil
+	} else if function == "getTicketByAddress"{
+		if len(args) != 1 {
+			return nil, errors.New("Incorrect number of arguments. Expecting 1")
+		}
+		_, ticketBytes, err := getTicketByAddress(stub,args[0])
+		if err != nil {
+			fmt.Println("Error get ticket")
+			return nil, err
+		}
+		return ticketBytes, nil
+	}
+
+	return nil,nil
+}
 
  func main() {
  	err := shim.Start(new(SimpleChaincode))
@@ -120,7 +213,7 @@
  	return address, privateKey, publicKey
  }
 
- // FIXME
+ // FIXME TODO
  func GetLuckyNumber() (string) {
  	rand.NewSource(time.Now().UnixNano())
     r1 := rand.New(s1)
@@ -137,28 +230,55 @@
 
  	return A == B
  }
+// FIXME
+ func CalcPrize(stub *shim.ChaincodeStub, lottery Lottery) (int) {
+ 	var prize = 0
+ 	var count = 0
+
+ 	for _, ticketAddress := range lottery.TicketAddress {
+ 		ticket, _, error := getTicketByAddress(stub, ticketAddress)
+		if error != nil {
+			continue
+		}
+
+		if ticket.BuyNumber == lottery.LuckyNumber {
+			count = count + ticket.Count
+		}
+ 	}
+
+ 	if count != 0 {
+ 		prize = lottery.InitMoney / count
+ 	}
+
+ 	return prize
+ }
 
  func (t *SimpleChaincode) createLottery(stub *shim.ChaincodeStub, args []string) ([]byte, error) {
 
- 	if len(args) != 5 {
- 		return nil, errors.New("Incorrect number of arguments, expecting 5")
+ 	if len(args) != 6 {
+ 		return nil, errors.New("Incorrect number of arguments, expecting 6")
  	}
 
- 	authority, authorityBytes, err := getAuthorityByAddress(stub, args[0])
+ 	company, companyBytes, err := getCompanyByAddress(stub, args[4])
 	if err != nil {
 		return nil, errors.New("Error get data")
 	}
 
-	money, err := strconv.Atoi(args[3])
+ 	issuer, issuerBytes, err := getIssuerByAddress(stub, args[0])
 	if err != nil {
-		return nil, errors.New("Error parameter")
+		return nil, errors.New("Error get data")
 	}
 
-	if money < BASE_MONEY {
+	issuerSign := args[5]
+	if ! CheckSignature(issuer.publicKey, issuerSign) {
+		return nil, errors.New("Not allowed")
+	}
+
+	if issuer.Money < BASE_MONEY {
 		return nil, erros.New("Not enough money")
 	}
 
-	endTime, err := strconv.Atoi(args[4])
+	endTime, err := strconv.Atoi(args[3])
 	if err != nil {
 		return nil, errors.New("Error parameter")
 	}
@@ -172,14 +292,15 @@
  	address, privateKey, publicKey = GetAddress()
  	closeTime = endTime + DAYS_TO_CLOSE * 86400
 
- 	lottery = Lottery { Name:args[1], Type:args[2], InitMoney:money, EndTime:endTime, CloseTime:closeTime
+ 	lottery = Lottery { Name:args[1], Type:args[2], InitMoney:BASE_MONEY, EndTime:endTime, CloseTime:closeTime
  						Address:address, PrivateKey:privateKey, PublicKey:publicKey, 
- 						TicketAddress:ticketAddress, State:ACTIVE, TotalMoney:money,
- 						AuthorityAddress:authority.Address, LuckyNumber:"" }
+ 						TicketAddress:ticketAddress, State:ACTIVE, TotalMoney:BASE_MONEY,
+ 						IssuerAddress:issuer.Address, LuckyNumber:"",
+ 						CompanyAddress:company.Address, PrizeUnit:0 }
 
  	// FIXME: update money
- 	authority.Money = authority.Money - BASE_MONEY
- 	err := writeAuthority(stub, authority)
+ 	issuer.Money = issuer.Money - BASE_MONEY
+ 	err := writeIssuer(stub, issuer)
  	if err != nil {
  		return nil, erros.New("write error" + err.Error())
  	}
@@ -197,30 +318,56 @@
  	return lotteryBytes, nil
  }
 
- func (t *SimpleChaincode) createAuthority(stub *shim.ChaincodeStub, args []string) ([]byte, error) {
+ func (t *SimpleChaincode) createCompany(stub *shim.ChaincodeStub, args []string) ([]byte, error) {
 
 	if len(args) != 2 {
 		return nil,errors.New("Incorrect number of arguments. Expecting 2")
 	}
 
-	var authority Authority
-	var authorityBytes []byte
+	var company Company
+	var companyBytes []byte
 	var address, privateKey, publicKey string
 
  	address, privateKey, publicKey = GetAddress()
 
-	authority = Authority { Name:args[0], Money:args[1], Address:address, PrivateKey:privateKey, PublicKey:publicKey }
-	err := writeAuthority(stub, authority)
+	company = Company { Name:args[0], Money:0, Address:address, PrivateKey:privateKey, PublicKey:publicKey }
+	err := writeCompany(stub, company)
 	if err != nil {
 		return nil, errors.New("Write error" + err.Error())
 	}
 
-	authorityBytes, err = json.Marshal(&authority)
+	companyBytes, err = json.Marshal(&company)
 	if err != nil {
-		return nil, errors.New("Error retrieving authorityBytes")
+		return nil, errors.New("Error retrieving companyBytes")
 	}
 
-	return authorityBytes, nil
+	return companyBytes, nil
+}
+
+ func (t *SimpleChaincode) createIssuer(stub *shim.ChaincodeStub, args []string) ([]byte, error) {
+
+	if len(args) != 2 {
+		return nil,errors.New("Incorrect number of arguments. Expecting 2")
+	}
+
+	var issuer Issuer
+	var issuerBytes []byte
+	var address, privateKey, publicKey string
+
+ 	address, privateKey, publicKey = GetAddress()
+
+	issuer = Issuer { Name:args[0], Money:args[1], Address:address, PrivateKey:privateKey, PublicKey:publicKey }
+	err := writeIssuer(stub, issuer)
+	if err != nil {
+		return nil, errors.New("Write error" + err.Error())
+	}
+
+	issuerBytes, err = json.Marshal(&issuer)
+	if err != nil {
+		return nil, errors.New("Error retrieving issuerBytes")
+	}
+
+	return issuerBytes, nil
 }
 
  func (t *SimpleChaincode) createPlayer(stub *shim.ChaincodeStub, args []string) ([]byte, error) {
@@ -328,6 +475,21 @@ func (t *SimpleChaincode) drawLottery(stub *shim.ChaincodeStub, args []string) (
 		return nil, errors.New("Error get data")
 	}
 
+	issuer, issuerBytes, err := getIssuerByAddress(stub, lottery.IssuerAddress)
+	if err != nil {
+		return nil, errors.New("Error get data")
+	}
+
+	issuerSign := args[1]
+	if ! CheckSignature(issuer.publicKey, issuerSign) {
+		return nil, errors.New("Not allowed")
+	}
+
+	company, companyBytes, err := getCompanyByAddress(stub, lottery.CompanyAddress)
+	if err != nil {
+		return nil, errors.New("Error get data")
+	}
+
 	if lottery.State != ACTIVE {
 		return nil, errors.New("Lottery is not active!")
 	}
@@ -337,10 +499,17 @@ func (t *SimpleChaincode) drawLottery(stub *shim.ChaincodeStub, args []string) (
 	}
 
 	lottery.LuckyNumber = GetLuckyNumber()
+	lottery.PrizeUnit = CalcPrize(stub, lottery)
 	lottery.State = DRAW
 	// FIXME: to avoid cheating
 	if lottery.EndTime < (timeNow - 86400) {
 		lottery.TotalMoney = lottery.TotalMoney - PULISHMENT_MONEY
+		company.Money = company.Money + PULISHMENT_MONEY
+	}
+
+	err = writeCompany(stub, company)
+	if err != nil {
+		return nil, errors.New("Error write data")
 	}
 
 	lottery.CloseTime = timeNow + DAYS_TO_CLOSE*86400
@@ -402,9 +571,9 @@ func (t *SimpleChaincode) takePrize(stub *shim.ChaincodeStub, args []string) ([]
 
 	// TODO
 	ticket.State = WON
-	totalPrize = ticket.Count * PRIZE_UNIT
-	// TODO: avoid underrun
-	lottery.TotalMoney -= totalPrize
+	totalPrize = ticket.Count * lottery.PrizeUnit
+	// FIXME: avoid underrun
+	lottery.TotalMoney = lottery.TotalMoney - totalPrize
 
 	err = writeTicket(stub, ticket)
 	if err != nil {
@@ -439,30 +608,45 @@ func (t *SimpleChaincode) closeLottery(stub *shim.ChaincodeStub, args []string) 
 		return nil, errors.New("Error get data")
 	}
 
+	company, companyBytes, err := getCompanyByAddress(stub, lottery.CompanyAddress)
+	if err != nil {
+		return nil, errors.New("Error get data")
+	}
+
 	if lottery.State != DRAW {
 		return nil, errors.New("Lottery is active!")
 	}
 
-	authority, authorityBytes, err := getAuthorityByAddress(stub, lottery.AuthorityAddress)
+	issuer, issuerBytes, err := getIssuerByAddress(stub, lottery.IssuerAddress)
 	if err != nil {
 		return nil, errors.New("Error get data")
 	}
 
 	// TODO: check signature
-	authoritySign := args[1]
-	if ! CheckSignature(authority.publicKey, authoritySign) {
+	issuerSign := args[1]
+	if ! CheckSignature(issuer.publicKey, issuerSign) {
 		return nil, errors.New("Not allowed")
 	}
 
 	if lottery.CloseTime < time.Now().Unix() {
 		return nil, errors.New("Not expired")
 	}
-	// close the lottery
+	// FIXME: close the lottery
 	lottery.State = CLOSED
-	authority.Money = authority.Money + lottery.TotalMoney
+	var profit, fee int
+	profit = lottery.TotalMoney - lottery.InitMoney
+	if profit > 0 {
+		fee = profit * FEE_PERCENT
+		profit = profit - fee
+		company.Money = company.Money + fee
+	} else {
+		fee = 0
+	}
+
+	issuer.Money = issuer.Money + lottery.TotalMoney - fee
 	// FIXME
 	// lottery.TotalMoney = 0
-	err = writeAuthority(stub, authority)
+	err = writeIssuer(stub, issuer)
 	if err != nil {
 		return nil, errors.New("Error write data")
 	}
@@ -472,13 +656,18 @@ func (t *SimpleChaincode) closeLottery(stub *shim.ChaincodeStub, args []string) 
 		return nil, errors.New("Error write data")
 	}
 
-	authorityBytes, err = json.Marshal(&authority)
-	
-	if err!= nil {
-		return nil,errors.New("Error retrieving authorityBytes")
+	err = writeCompany(stub, company)
+	if err != nil {
+		return nil, errors.New("Error write data")
 	}
 
-	return authorityBytes, nil
+	issuerBytes, err = json.Marshal(&issuer)
+	
+	if err!= nil {
+		return nil,errors.New("Error retrieving issuerBytes")
+	}
+
+	return issuerBytes, nil
 }
 
 func getLotteryByAddress(stub *shim.ChaincodeStub, address string) (Lottery, []byte, error) {
@@ -497,20 +686,36 @@ func getLotteryByAddress(stub *shim.ChaincodeStub, address string) (Lottery, []b
 	return lottery, lotteryBytes, nil
 }
 
-func getAuthorityByAddress(stub *shim.ChaincodeStub, address string) (Authority, []byte, error){
-	var authority Authority
-	authorityBytes, err := stub.GetState(address)
+func getCompanyByAddress(stub *shim.ChaincodeStub, address string) (Company, []byte, error){
+	var company Company
+	companyBytes, err := stub.GetState(address)
 	if err != nil {
 		fmt.Println("Error retrieving data")
 		// TODO
 	}
 
-	err = json.Unmarshal(authorityBytes, &authority)
+	err = json.Unmarshal(companyBytes, &company)
 	if err != nil {
 		fmt.Println("Error unmarshalling data")
 	}
 
-	return authority, authorityBytes, nil
+	return company, companyBytes, nil
+}
+
+func getIssuerByAddress(stub *shim.ChaincodeStub, address string) (Issuer, []byte, error){
+	var issuer Issuer
+	issuerBytes, err := stub.GetState(address)
+	if err != nil {
+		fmt.Println("Error retrieving data")
+		// TODO
+	}
+
+	err = json.Unmarshal(issuerBytes, &issuer)
+	if err != nil {
+		fmt.Println("Error unmarshalling data")
+	}
+
+	return issuer, issuerBytes, nil
 }
 
 func getPlayerByAddress(stub *shim.ChaincodeStub, address string) (Player, []byte, error){
@@ -575,13 +780,27 @@ func writeLottery(stub *shim.ChaincodeStub, lottery Lottery) (error) {
 	return nil
 }
 
-func writeAuthority(stub *shim.ChaincodeStub, authority Authority) (error) {
-	authorityBytes, err := json.Marshal(&authority)
+func writeCompany(stub *shim.ChaincodeStub, company Company) (error) {
+	companyBytes, err := json.Marshal(&company)
 	if err != nil {
 		return err
 	}
 
-	err = stub.PutState(authority.Address, authorityBytes)
+	err = stub.PutState(company.Address, companyBytes)
+	if err != nil {
+		return errors.New("PutState error" + err.Error())
+	}
+
+	return nil
+}
+
+func writeIssuer(stub *shim.ChaincodeStub, issuer Issuer) (error) {
+	issuerBytes, err := json.Marshal(&issuer)
+	if err != nil {
+		return err
+	}
+
+	err = stub.PutState(issuer.Address, issuerBytes)
 	if err != nil {
 		return errors.New("PutState error" + err.Error())
 	}
