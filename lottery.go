@@ -116,8 +116,8 @@
  }
 
  // interface functions
- func (t *SimpleChaincode) Init(stub shim.ChaincodeStubInterface) ([]byte, error) {
- 	function, args := stub.GetFunctionAndParameters()
+ func (t *SimpleChaincode) Init(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error) {
+ 	// function, args := stub.GetFunctionAndParameters()
 	if function == "createCompany" {
 		return t.createCompany(stub, args)
 	} else if function == "createIssuer" {
@@ -129,8 +129,8 @@
 	return nil, nil
 }
 
-func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface) ([]byte, error) {
-	function, args := stub.GetFunctionAndParameters()
+func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error) {
+	// function, args := stub.GetFunctionAndParameters()
 	if function == "createLottery" {
 		return t.createLottery(stub, args)
 	} else if function == "drawLottery" {
@@ -146,8 +146,8 @@ func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface) ([]byte, erro
 	return nil,nil
 }
 
-func (t *SimpleChaincode) Query(stub shim.ChaincodeStubInterface) ([]byte, error) {
-	function, args := stub.GetFunctionAndParameters()
+func (t *SimpleChaincode) Query(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error) {
+	// function, args := stub.GetFunctionAndParameters()
 	if function == "getCompanyByAddress"{
 		if len(args) != 1 {
 			return nil, errors.New("Incorrect number of arguments. Expecting 1")
