@@ -101,7 +101,6 @@
  	PlayerAddress string
  	PlayerSign string
  	BuyTime int64
- 	OpenTime int64
  	Count int
  	BuyNumber string
  	
@@ -116,38 +115,35 @@
  }
 
  // interface functions
- func (t *SimpleChaincode) Init(stub shim.ChaincodeStubInterface) ([]byte, error) {
- 	function, args := stub.GetFunctionAndParameters()
-	if function == "createCompany" {
-		return t.createCompany(stub, args)
-	} else if function == "createIssuer" {
-		return t.createIssuer(stub, args)
-	} else if function == "createPlayer" {
-		return t.createPlayer(stub, args)
+ func (t *SimpleChaincode) Init(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error) {
+	if function == "createCompany"{
+		return t.createCompany(stub,args)
+	} else if function == "createIssuer"{
+		return t.createIssuer(stub,args)
+	} else if function == "createPlayer"{
+		return t.createPlayer(stub,args)
 	}
 	
 	return nil, nil
 }
 
-func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface) ([]byte, error) {
-	function, args := stub.GetFunctionAndParameters()
-	if function == "createLottery" {
-		return t.createLottery(stub, args)
-	} else if function == "drawLottery" {
-		return t.drawLottery(stub, args)
-	} else if function == "closeLottery" {
-		return t.closeLottery(stub, args)
-	} else if function == "buyTicket" {
-		return t.buyTicket(stub, args)
-	} else if function == "takePrize" {
-		return t.takePrize(stub, args)
+func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error) {
+	if function == "createLottery"{
+		return t.createLottery(stub,args)
+	} else if function == "drawLottery"{
+		return t.drawLottery(stub,args)
+	} else if function == "closeLottery"{
+		return t.closeLottery(stub,args)
+	} else if function == "buyTicket"{
+		return t.buyTicket(stub,args)
+	} else if function == "takePrize"{
+		return t.takePrize(stub,args)
 	} 
 
 	return nil,nil
 }
 
-func (t *SimpleChaincode) Query(stub shim.ChaincodeStubInterface) ([]byte, error) {
-	function, args := stub.GetFunctionAndParameters()
+func (t *SimpleChaincode) Query(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error) {
 	if function == "getCompanyByAddress"{
 		if len(args) != 1 {
 			return nil, errors.New("Incorrect number of arguments. Expecting 1")
@@ -227,11 +223,11 @@ func (t *SimpleChaincode) Query(stub shim.ChaincodeStubInterface) ([]byte, error
  func GetLuckyNumber() (string) {
 	nBig, err := rand.Int(rand.Reader, big.NewInt(10000))
 	if err != nil {
-        panic(err)
-    }
-    n := nBig.Int64()
-	fmt.Printf("lucky number = %d\n", n)
-    return fmt.Sprintf("%d", n)
+        	panic(err)
+    	}
+    	n := nBig.Int64()
+	fmt.Printf("Here is a random %d\n", n)
+    	return fmt.Sprintf("%d", n)
  }
 
 // TODO
@@ -271,12 +267,12 @@ func (t *SimpleChaincode) Query(stub shim.ChaincodeStubInterface) ([]byte, error
  		return nil, errors.New("Incorrect number of arguments, expecting 6")
  	}
 
- 	company, _, err := getCompanyByAddress(stub, args[4])
+ 	company, companyBytes, err := getCompanyByAddress(stub, args[4])
 	if err != nil {
 		return nil, errors.New("Error get data")
 	}
 
- 	issuer, _, err := getIssuerByAddress(stub, args[0])
+ 	issuer, issuerBytes, err := getIssuerByAddress(stub, args[0])
 	if err != nil {
 		return nil, errors.New("Error get data")
 	}
@@ -417,7 +413,7 @@ func (t *SimpleChaincode) Query(stub shim.ChaincodeStubInterface) ([]byte, error
 
 func (t *SimpleChaincode) buyTicket(stub shim.ChaincodeStubInterface, args []string) ([]byte, error) {
 	// check if lottery is valid
-	lottery, _, error := getLotteryByAddress(stub, args[0])
+	lottery, lotteryBytes, error := getLotteryByAddress(stub, args[0])
 	if error != nil {
 		return nil, errors.New("Error get data")
 	}
@@ -430,7 +426,7 @@ func (t *SimpleChaincode) buyTicket(stub shim.ChaincodeStubInterface, args []str
 		return nil, errors.New("Lottery is not active")
 	}
 
-	player, _, err := getPlayerByAddress(stub, args[2])
+	player, playerBytes, err := getPlayerByAddress(stub, args[2])
 	if err != nil {
 		return nil, errors.New("Error get data")
 	}
@@ -454,7 +450,7 @@ func (t *SimpleChaincode) buyTicket(stub shim.ChaincodeStubInterface, args []str
 	address, _, _ = GetAddress()
 	ticket = Ticket { Address:address, 
 		LotteryAddress:args[0], PlayerAddress:args[2], Count:count, BuyNumber:args[4],
-		PlayerSign:playerSign, BuyTime:time.Now().Unix(), OpenTime:0, State:VALID}
+		PlayerSign:playerSign, BuyTime:time.Now().Unix(), State:VALID}
 
 	err = writeTicket(stub, ticket)
 	if err != nil {
@@ -494,7 +490,7 @@ func (t *SimpleChaincode) drawLottery(stub shim.ChaincodeStubInterface, args []s
 		return nil, errors.New("Error get data")
 	}
 
-	issuer, _, err := getIssuerByAddress(stub, lottery.IssuerAddress)
+	issuer, issuerBytes, err := getIssuerByAddress(stub, lottery.IssuerAddress)
 	if err != nil {
 		return nil, errors.New("Error get data")
 	}
@@ -504,7 +500,7 @@ func (t *SimpleChaincode) drawLottery(stub shim.ChaincodeStubInterface, args []s
 		return nil, errors.New("Not allowed")
 	}
 
-	company, _, err := getCompanyByAddress(stub, lottery.CompanyAddress)
+	company, companyBytes, err := getCompanyByAddress(stub, lottery.CompanyAddress)
 	if err != nil {
 		return nil, errors.New("Error get data")
 	}
@@ -557,7 +553,7 @@ func (t *SimpleChaincode) takePrize(stub shim.ChaincodeStubInterface, args []str
 		return nil, errors.New("Error get data")
 	}
 
-	lottery, _, err := getLotteryByAddress(stub, ticket.LotteryAddress)
+	lottery, lotteryBytes, err := getLotteryByAddress(stub, ticket.LotteryAddress)
 	if err != nil {
 		return nil, errors.New("Error get data")
 	}
@@ -570,7 +566,7 @@ func (t *SimpleChaincode) takePrize(stub shim.ChaincodeStubInterface, args []str
 		return nil, errors.New("Lottery is closed, too late!")
 	}
 
-	player, _, err := getPlayerByAddress(stub, ticket.PlayerAddress)
+	player, playerBytes, err := getPlayerByAddress(stub, ticket.PlayerAddress)
 	if err != nil {
 		return nil, errors.New("Error get data")
 	}
@@ -590,7 +586,6 @@ func (t *SimpleChaincode) takePrize(stub shim.ChaincodeStubInterface, args []str
 
 	// TODO
 	ticket.State = WON
-	ticket.OpenTime = timeNow
 	totalPrize = ticket.Count * lottery.PrizeUnit
 	// FIXME: avoid underrun
 	lottery.TotalMoney = lottery.TotalMoney - totalPrize
@@ -623,12 +618,12 @@ func (t *SimpleChaincode) takePrize(stub shim.ChaincodeStubInterface, args []str
 
 func (t *SimpleChaincode) closeLottery(stub shim.ChaincodeStubInterface, args []string) ([]byte, error) {
 
-	lottery, _, error := getLotteryByAddress(stub, args[0])
+	lottery, lotteryBytes, error := getLotteryByAddress(stub, args[0])
 	if error != nil {
 		return nil, errors.New("Error get data")
 	}
 
-	company, _, err := getCompanyByAddress(stub, lottery.CompanyAddress)
+	company, companyBytes, err := getCompanyByAddress(stub, lottery.CompanyAddress)
 	if err != nil {
 		return nil, errors.New("Error get data")
 	}
@@ -656,8 +651,7 @@ func (t *SimpleChaincode) closeLottery(stub shim.ChaincodeStubInterface, args []
 	var profit, fee int
 	profit = lottery.TotalMoney - lottery.InitMoney
 	if profit > 0 {
-		var temp = float64(profit) * float64(FEE_PERCENT)
-		fee = int(temp)
+		// fee = profit * FEE_PERCENT
 		profit = profit - fee
 		company.Money = company.Money + fee
 	} else {
