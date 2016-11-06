@@ -8,7 +8,8 @@
  import (
  	"errors"
  	"fmt"
- 	"math/rand"
+	"strconv"
+	"math/big"
  	"crypto/md5"
  	"crypto/rand"
  	"encoding/base64"
@@ -17,7 +18,7 @@
  	"github.com/hyperledger/fabric/core/chaincode/shim"
  )
 
- type SimpleChainCode struct {
+ type SimpleChaincode struct {
 
  }
 
@@ -112,6 +113,8 @@
 	} else if function == "createPlayer"{
 		return t.createPlayer(stub,args)
 	}
+	
+	return nil, nil
 }
 
 func (t *SimpleChaincode) Invoke(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error) {
@@ -135,7 +138,7 @@ func (t *SimpleChaincode) Query(stub *shim.ChaincodeStub, function string, args 
 		if len(args) != 1 {
 			return nil, errors.New("Incorrect number of arguments. Expecting 1")
 		}
-		_, companyBytes, err := getComanyByAddress(stub,args[0])
+		_, companyBytes, err := getCompanyByAddress(stub,args[0])
 		if err != nil {
 			fmt.Println("Error get company")
 			return nil, err
@@ -202,7 +205,7 @@ func (t *SimpleChaincode) Query(stub *shim.ChaincodeStub, function string, args 
  		return "", "", ""
  	}
 
- 	h := md5:New()
+ 	h := md5.New()
  	h.Write([]byte(base64.URLEncoding.EncodeToString(b)))
 
  	address = hex.EncodeToString(h.Sum(nil))
@@ -215,11 +218,13 @@ func (t *SimpleChaincode) Query(stub *shim.ChaincodeStub, function string, args 
 
  // FIXME TODO
  func GetLuckyNumber() (string) {
- 	rand.NewSource(time.Now().UnixNano())
-    r1 := rand.New(s1)
-    n := r1.Int(1000000)
-
-    return fmt.Sprintf("%d", n)
+	nBig, err := rand.Int(rand.Reader, big.NewInt(10000))
+	if err != nil {
+        	panic(err)
+    	}
+    	n := nBig.Int64()
+	fmt.Printf("Here is a random %d\n", n)
+    	return fmt.Sprintf("%d", n)
  }
 
 // TODO
@@ -270,12 +275,12 @@ func (t *SimpleChaincode) Query(stub *shim.ChaincodeStub, function string, args 
 	}
 
 	issuerSign := args[5]
-	if ! CheckSignature(issuer.publicKey, issuerSign) {
+	if ! CheckSignature(issuer.PublicKey, issuerSign) {
 		return nil, errors.New("Not allowed")
 	}
 
 	if issuer.Money < BASE_MONEY {
-		return nil, erros.New("Not enough money")
+		return nil, errors.New("Not enough money")
 	}
 
 	endTime, err := strconv.Atoi(args[3])
@@ -292,7 +297,7 @@ func (t *SimpleChaincode) Query(stub *shim.ChaincodeStub, function string, args 
  	address, privateKey, publicKey = GetAddress()
  	closeTime = endTime + DAYS_TO_CLOSE * 86400
 
- 	lottery = Lottery { Name:args[1], Type:args[2], InitMoney:BASE_MONEY, EndTime:endTime, CloseTime:closeTime
+ 	lottery = Lottery { Name:args[1], Type:args[2], InitMoney:BASE_MONEY, EndTime:endTime, CloseTime:closeTime,
  						Address:address, PrivateKey:privateKey, PublicKey:publicKey, 
  						TicketAddress:ticketAddress, State:ACTIVE, TotalMoney:BASE_MONEY,
  						IssuerAddress:issuer.Address, LuckyNumber:"",
@@ -300,12 +305,12 @@ func (t *SimpleChaincode) Query(stub *shim.ChaincodeStub, function string, args 
 
  	// FIXME: update money
  	issuer.Money = issuer.Money - BASE_MONEY
- 	err := writeIssuer(stub, issuer)
+ 	err = writeIssuer(stub, issuer)
  	if err != nil {
- 		return nil, erros.New("write error" + err.Error())
+ 		return nil, errors.New("write error" + err.Error())
  	}
 
- 	err := writeLottery(stub, lottery)
+ 	err = writeLottery(stub, lottery)
  	if err != nil {
  		return nil, errors.New("write error" + err.Error())
  	}					
@@ -481,7 +486,7 @@ func (t *SimpleChaincode) drawLottery(stub *shim.ChaincodeStub, args []string) (
 	}
 
 	issuerSign := args[1]
-	if ! CheckSignature(issuer.publicKey, issuerSign) {
+	if ! CheckSignature(issuer.PublicKey, issuerSign) {
 		return nil, errors.New("Not allowed")
 	}
 
