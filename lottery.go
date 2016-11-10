@@ -108,8 +108,8 @@
 
  // interface functions
  func (t *SimpleChaincode) Init(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error) {
- 	
- 	issuerBytes, err := t.CreateIssuer(stub, args)
+ 	// _, args := stub.GetFunctionAndParameters()
+ 	_, err := t.CreateIssuer(stub, args)
  	if err != nil {
  		fmt.Printf("Failed to create issuer\n")
  		return nil, errors.New("init error" + err.Error())
@@ -125,7 +125,7 @@
 }
 
 func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error) {
-	
+	// function, args := stub.GetFunctionAndParameters()
 	if function == "createOutlet" {
 		return t.CreateOutlet(stub, args)
 	} else if function == "createPlayer" {
@@ -138,7 +138,7 @@ func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface, function stri
 }
 
 func (t *SimpleChaincode) Query(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error) {
-	
+	// function, args := stub.GetFunctionAndParameters()
 	if function == "getIssuer"{
 		if len(args) != 1 {
 			return nil, errors.New("Incorrect number of arguments. Expecting 1")
@@ -382,7 +382,7 @@ func (t *SimpleChaincode) BuyTicket(stub shim.ChaincodeStubInterface, args []str
 		return nil, errors.New("Error get lottery")
 	}
 
-	outlet, _, error := getOutletById(stub, args[0])
+	_, _, error = getOutletById(stub, args[0])
 	if error != nil {
 		return nil, errors.New("Error get outlet")
 	}	
