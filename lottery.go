@@ -470,9 +470,9 @@ func getIssuerById(stub shim.ChaincodeStubInterface, id string) (Issuer, []byte,
 	return issuer, issuerBytes, nil
 }
 
-func getLotteryById(stub shim.ChaincodeStubInterface, address string) (Lottery, []byte, error) {
+func getLotteryById(stub shim.ChaincodeStubInterface, id string) (Lottery, []byte, error) {
 	var lottery Lottery
-	lotteryBytes, err := stub.GetState(address)
+	lotteryBytes, err := stub.GetState(LOTTERY_PREFIX+id)
 	if err != nil {
 		fmt.Println("Error retrieving data")
 		// TODO
