@@ -305,6 +305,12 @@ func (t *SimpleChaincode) CreateLottery(stub shim.ChaincodeStubInterface, args [
  		return nil, errors.New("Error retrieving lotteryBytes")
  	}
 
+ 	toSend := fmt.Sprintf("created lottery: %d\n", lottery.ID)
+	err = stub.SetEvent("lottery", []byte(toSend))
+	if err != nil {
+		return nil, err
+	}
+
  	return lotteryBytes, nil
  }
 
@@ -326,6 +332,12 @@ func (t *SimpleChaincode) CreateOutlet(stub shim.ChaincodeStubInterface, args []
 	outletBytes, err = json.Marshal(&outlet)
 	if err != nil {
 		return nil, errors.New("Error retrieving outletBytes")
+	}
+
+	toSend := fmt.Sprintf("created outlet: %d\n", OutletNo)
+	err = stub.SetEvent("lottery", []byte(toSend))
+	if err != nil {
+		return nil, err
 	}
 
 	OutletNo = OutletNo + 1
@@ -352,6 +364,12 @@ func (t *SimpleChaincode) CreateOutlet(stub shim.ChaincodeStubInterface, args []
 	playerBytes, err = json.Marshal(&player)
 	if err != nil {
 		return nil, errors.New("Error retrieving playerBytes")
+	}
+
+	toSend := fmt.Sprintf("created player: %d\n", PlayerNo)
+	err = stub.SetEvent("lottery", []byte(toSend))
+	if err != nil {
+		return nil, err
 	}
 
 	PlayerNo = PlayerNo + 1
@@ -423,6 +441,12 @@ func (t *SimpleChaincode) BuyTicket(stub shim.ChaincodeStubInterface, args []str
 	// draw lottery if condition is fulfilled
 	if len(lottery.TicketAddress) == TICKET_PERIOD {
 		drawLottery(stub, lottery)
+	}
+
+	toSend := fmt.Sprintf("sold %d tickets\n", TicketNo)
+	err = stub.SetEvent("lottery", []byte(toSend))
+	if err != nil {
+		return nil, err
 	}
 
 	TicketNo = TicketNo + 1
